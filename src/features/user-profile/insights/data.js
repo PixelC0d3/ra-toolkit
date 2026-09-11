@@ -52,8 +52,10 @@ export function fetchDashboardData(ctx) {
     gmFetch(recentAllUrl, 15000).then(function (r) { return JSON.parse(r.responseText); }).catch(function () { return null; }),
     gmFetch(awardsUrl, 15000).then(function (r) { return JSON.parse(r.responseText); }).catch(function () { return null; })
   ];
+  // null (not []) marks a failed chunk, so a real empty year (new accounts,
+  // no activity) can still be told apart from every request failing.
   var yearlyPromises = yearlyChunkUrls.map(function (url) {
-    return gmFetch(url, 20000).then(function (r) { return JSON.parse(r.responseText); }).catch(function () { return []; });
+    return gmFetch(url, 20000).then(function (r) { return JSON.parse(r.responseText); }).catch(function () { return null; });
   });
 
   Promise.all(corePromises.concat(yearlyPromises)).then(function (results) {
@@ -63,9 +65,11 @@ export function fetchDashboardData(ctx) {
 
     // Merge 4 quarterly chunks into yearlyAchievements
     var yearlyAchievements = [];
+    var yearlyFetchOk = false;
     for (var q = 0; q < 4; q++) {
       var chunk = results[3 + q];
       if (Array.isArray(chunk)) {
+        yearlyFetchOk = true;
         yearlyAchievements = yearlyAchievements.concat(chunk);
       }
     }
@@ -120,7 +124,9 @@ export function fetchDashboardData(ctx) {
     renderAlmostThere(almostGames, almostSection);
 
     // --- Streak Tracker (uses yearly data for better accuracy) ---
-    if (yearlyAchievements && yearlyAchievements.length > 0) {
+    // yearlyFetchOk, not a length check: a real empty year (no activity yet)
+    // still renders — renderStreakTracker shows its own empty state for that.
+    if (yearlyFetchOk) {
       renderStreakTracker(yearlyAchievements, streakSection);
     } else {
       streakSection.querySelector('.enhanced-streak-content').innerHTML =
@@ -188,7 +194,9 @@ export function fetchDashboardData(ctx) {
       });
     }
 
-    if (yearlyAchievements && yearlyAchievements.length > 0) {
+    // Same distinction as the streak tracker: an empty year still draws the
+    // (empty) heatmap, only a fully failed fetch shows the error state.
+    if (yearlyFetchOk) {
       renderActivityTimeline(yearlyAchievements, masteredDayMap, beatenDayMap, timelineSection);
     } else {
       timelineSection.querySelector('.enhanced-timeline-content').innerHTML =

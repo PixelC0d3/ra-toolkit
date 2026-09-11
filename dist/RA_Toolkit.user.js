@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         RA Toolkit
 // @namespace    https://github.com/WelingtonMonteiro
-// @version      2.10.0
+// @version      2.10.1
 // @description  Toolkit for RetroAchievements.org — ROMs, translations, dashboard, pagination and more. Based on Retro Enhanced by Miagui.
 // @author       Miagui / Updated by Welington
 // @match        *://retroachievements.org/*
@@ -209,8 +209,14 @@
   }
 
   // src/core/version.js
-  var CURRENT_VERSION = "2.10.0";
+  var CURRENT_VERSION = "2.10.1";
   var CHANGELOG = [
+    { version: "2.10.1", changes: [
+      "Last N Games Played: pagination no longer offers a next page when the account has fewer games than the page size",
+      "User Stats: Site rank no longer shows blank for accounts not ranked yet — shows the site's own status message instead",
+      "User Stats: Points and Site rank now also read from the profile header, fixing blank values when viewing someone else's profile",
+      "Activity (Last 365 Days): new accounts with no history now see the (empty) heatmap instead of an error message"
+    ] },
     { version: "2.10.0", changes: [
       "Rarest Achievements: now computed from your entire achievement history (like the mobile app), not just the last 30 days",
       "Rarest Achievements: paginated (5 per page by default, configurable) with sort filters — Rarest first, Least rare first, Most recent",
@@ -4439,10 +4445,7 @@
   // src/features/user-profile/insights/timeline.js
   function renderActivityTimeline(achievements, masteredDayMap, beatenDayMap, timelineSection) {
     var content = timelineSection.querySelector(".enhanced-timeline-content");
-    if (!achievements || achievements.length === 0) {
-      content.innerHTML = '<div style="font-size:0.78rem;color:#525252;padding:4px 0;">No recent activity.</div>';
-      return;
-    }
+    achievements = achievements || [];
     var totalEl = document.getElementById("enhanced-timeline-total");
     if (totalEl) totalEl.textContent = "— " + achievements.length + " achievements";
     var achDayMap = {};
@@ -5032,7 +5035,7 @@
       return gmFetch(url, 2e4).then(function(r) {
         return JSON.parse(r.responseText);
       }).catch(function() {
-        return [];
+        return null;
       });
     });
     Promise.all(corePromises.concat(yearlyPromises)).then(function(results) {
@@ -5040,9 +5043,11 @@
       var recentGames = results[1];
       var awardsData = results[2];
       var yearlyAchievements = [];
+      var yearlyFetchOk = false;
       for (var q2 = 0; q2 < 4; q2++) {
         var chunk = results[3 + q2];
         if (Array.isArray(chunk)) {
+          yearlyFetchOk = true;
           yearlyAchievements = yearlyAchievements.concat(chunk);
         }
       }
@@ -5090,7 +5095,7 @@
         almostGames = almostGames.slice(0, 5);
       }
       renderAlmostThere(almostGames, almostSection);
-      if (yearlyAchievements && yearlyAchievements.length > 0) {
+      if (yearlyFetchOk) {
         renderStreakTracker(yearlyAchievements, streakSection);
       } else {
         streakSection.querySelector(".enhanced-streak-content").innerHTML = '<div style="font-size:0.78rem;color:#525252;padding:4px 0;">Could not load streak data.</div>';
@@ -5145,7 +5150,7 @@
           }
         });
       }
-      if (yearlyAchievements && yearlyAchievements.length > 0) {
+      if (yearlyFetchOk) {
         renderActivityTimeline(yearlyAchievements, masteredDayMap, beatenDayMap, timelineSection);
       } else {
         timelineSection.querySelector(".enhanced-timeline-content").innerHTML = '<div style="font-size:0.78rem;color:#525252;padding:4px 0;">Could not load activity data.</div>';
@@ -5232,20 +5237,35 @@
       }
       return s[key] || "";
     }
+    function scrapeHeaderValue(labelSubstrings) {
+      var candidates = document.querySelectorAll("p");
+      for (var i = 0; i < candidates.length; i++) {
+        var boldSpan = candidates[i].querySelector("span.font-bold");
+        if (!boldSpan) continue;
+        var label = (boldSpan.textContent || "").trim();
+        for (var j = 0; j < labelSubstrings.length; j++) {
+          if (label.indexOf(labelSubstrings[j]) !== -1) {
+            return (candidates[i].textContent || "").replace(boldSpan.textContent, "").trim();
+          }
+        }
+      }
+      return "";
+    }
     function extractWeighted(raw) {
       var m = raw.match(/^([\d,.\s]+)\s*\((.+)\)$/);
       return m ? { main: m[1].trim(), weighted: m[2].trim() } : { main: raw, weighted: "" };
     }
     function extractRankTotal(raw) {
       var m = raw.match(/#([\d,]+)\s*of\s*([\d,]+)/i);
-      return m ? { rank: "#" + m[1], total: "of " + m[2] } : { rank: raw, total: "" };
+      if (m) return { rank: "#" + m[1], total: "of " + m[2] };
+      return { rank: raw || "Unranked", total: "" };
     }
     function extractBeatenRetail(raw) {
       var m = raw.match(/^(\d+)\s*\((.+)\)$/);
       return m ? { count: m[1], retail: m[2].trim() } : { count: raw, retail: "" };
     }
-    var pts = extractWeighted(val("Points"));
-    var rank = extractRankTotal(val("Site rank"));
+    var pts = extractWeighted(val("Points") || scrapeHeaderValue(["Points"]));
+    var rank = extractRankTotal(val("Site rank") || scrapeHeaderValue(["Site Rank", "Casual Rank"]));
     var beaten = extractBeatenRetail(val("Total games beaten"));
     var primaryHtml = '<div class="metric-card"><div class="card-top"><span class="metric-label">Points</span><span class="card-icon">⭐</span></div><div class="metric-value" style="color:#a78bfa;">' + escapeHtml(pts.main) + "</div>" + (pts.weighted ? '<div class="metric-sub">' + escapeHtml(pts.weighted) + " weighted</div>" : "") + '</div><div class="metric-card"><div class="card-top"><span class="metric-label">Site rank</span><span class="card-icon">🏅</span></div><div class="metric-value-sm" style="color:#fbbf24;">' + escapeHtml(rank.rank) + "</div>" + (rank.total ? '<div class="metric-sub">' + escapeHtml(rank.total) + "</div>" : "") + '</div><div class="metric-card"><div class="card-top"><span class="metric-label">Achievements</span><span class="card-icon">🏆</span></div><div class="metric-value" style="color:#3b82f6;">' + escapeHtml(val("Achievements unlocked")) + '</div></div><div class="metric-card"><div class="card-top"><span class="metric-label">RetroRatio</span><span class="card-icon">📊</span></div><div class="metric-value" style="color:#10b981;">' + escapeHtml(val("RetroRatio")) + '</div></div><div class="metric-card"><div class="card-top"><span class="metric-label">Games beaten</span><span class="card-icon">🎮</span></div><div class="metric-value" style="color:#f472b6;">' + escapeHtml(beaten.count) + "</div>" + (beaten.retail ? '<div class="metric-sub">' + escapeHtml(beaten.retail) + "</div>" : "") + '</div><div class="metric-card"><div class="card-top"><span class="metric-label">Beaten rate</span><span class="card-icon">📈</span></div><div class="metric-value" style="color:#38bdf8;">' + escapeHtml(val("Started games beaten")) + "</div></div>";
     var recentDefs = [
@@ -5443,13 +5463,16 @@
         doLoadPage(offset);
       }
     };
+    function serverListHasMore() {
+      return existingList.children.length >= ITEMS_PER_PAGE;
+    }
     function doLoadPage(offset) {
       currentOffset = offset;
       if (offset === 0 && ITEMS_PER_PAGE === 5) {
         existingList.style.display = "";
         gamesList.innerHTML = "";
         recentH2.textContent = originalHeadingText;
-        renderPaginator(paginationDiv, 0, true, paginatorContext);
+        renderPaginator(paginationDiv, 0, serverListHasMore(), paginatorContext);
         return;
       }
       existingList.style.display = "none";
@@ -5468,7 +5491,7 @@
         gamesList.innerHTML = '<div style="color:#ef4444;padding:12px;">Failed to load games: ' + escapeHtml(err.message) + "</div>";
       });
     }
-    renderPaginator(paginationDiv, 0, true, paginatorContext);
+    renderPaginator(paginationDiv, 0, serverListHasMore(), paginatorContext);
     log.info("User pagination initialized for: " + targetUser);
   }
 

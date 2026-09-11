@@ -253,6 +253,13 @@ export async function initUserPagination() {
     loadPage: function (offset) { doLoadPage(offset); },
   };
 
+  // The server-rendered list is only as long as the account has games for —
+  // a brand-new user with 2 games gets a 2-item list, not a padded 5-item
+  // one. A full page is the only signal that a next page might exist.
+  function serverListHasMore() {
+    return existingList.children.length >= ITEMS_PER_PAGE;
+  }
+
   function doLoadPage(offset) {
     currentOffset = offset;
 
@@ -261,7 +268,7 @@ export async function initUserPagination() {
       existingList.style.display = "";
       gamesList.innerHTML = '';
       recentH2.textContent = originalHeadingText;
-      renderPaginator(paginationDiv, 0, true, paginatorContext);
+      renderPaginator(paginationDiv, 0, serverListHasMore(), paginatorContext);
       return;
     }
 
@@ -295,7 +302,7 @@ export async function initUserPagination() {
   }
 
   // Initial paginator (page 1 already visible from server render)
-  renderPaginator(paginationDiv, 0, true, paginatorContext);
+  renderPaginator(paginationDiv, 0, serverListHasMore(), paginatorContext);
 
   log.info("User pagination initialized for: " + targetUser);
 }
