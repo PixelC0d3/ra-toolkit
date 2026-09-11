@@ -215,7 +215,7 @@ export function statElement(label, value) {
  * resources/views/components/user/profile-meta.blade.php
  * Labels come from app/Community/Components/UserProfileMeta.php.
  */
-export function userStatsBlock({ casual = true } = {}) {
+export function userStatsBlock({ casual = true, includePointsAndRank = true, siteRankValue = '#1,111 of 500,000' } = {}) {
   const casualStats = casual
     ? statElement('Points (casual)', '1,234') +
       statElement('Casual rank', '#5,678 of 90,000') +
@@ -224,11 +224,17 @@ export function userStatsBlock({ casual = true } = {}) {
       statElement('Softcore rank', '#5,678 of 90,000') +
       statElement('Achievements unlocked (softcore)', '456');
 
+  // Player Stats only carries its own Points/Site rank rows when the profile
+  // has mixed hardcore+casual progress. Hardcore-only accounts (most users)
+  // have them omitted here — set includePointsAndRank: false to reproduce.
+  const primaryRows = includePointsAndRank
+    ? statElement('Points', '12,345 (23,456)') + statElement('Site rank', siteRankValue)
+    : '';
+
   return (
     '<div x-data="{ isExpanded: true }"><div><div class="flex w-full justify-between items-center">' +
     '<h2 class="text-h4 mb-0!">User Stats</h2></div></div><div class="transition-all">' +
-    statElement('Points', '12,345 (23,456)') +
-    statElement('Site rank', '#1,111 of 500,000') +
+    primaryRows +
     statElement('Achievements unlocked', '2,345') +
     statElement('RetroRatio', '1.90') +
     statElement('Total games beaten', '42 (40 retail)') +
@@ -242,12 +248,28 @@ export function userStatsBlock({ casual = true } = {}) {
   );
 }
 
+/**
+ * resources/views/components/user/profile/primary-meta.blade.php — the
+ * profile header. Carries its own Points/Site Rank paragraphs, which is
+ * where those numbers live for profiles Player Stats omits them from.
+ */
+export function profileHeaderMetaBlock({ points = '135,283 (733,201)', rank = '#243 of 163,248 (Top 0.15%)' } = {}) {
+  return (
+    '<div class="text-2xs">' +
+    `<p><span class="font-bold">Points:</span> <span>${points}</span></p>` +
+    `<p><span class="font-bold">Site Rank:</span> <span>${rank}</span></p>` +
+    '</div>'
+  );
+}
+
 /** resources/views/components/user/recently-played/index.blade.php */
 export function recentlyPlayedBlock(count = 5) {
   return (
     '<div class="my-8"><div>' +
     `<h2 class="text-h4">Last ${count} Games Played</h2>` +
-    '<div class="flex flex-col gap-y-1"><div class="game-list-item">a game</div></div>' +
+    '<div class="flex flex-col gap-y-1">' +
+    '<div class="game-list-item">a game</div>'.repeat(count) +
+    '</div>' +
     '</div><div class="text-right"><a href="/user/Welington?g=50">more...</a></div></div>'
   );
 }
@@ -311,12 +333,19 @@ export function gamesPage() {
  * A trimmed /user/{name} page: RAWeb still renders this one with Blade
  * (resources/views/pages-legacy/userInfo.blade.php).
  */
-export function userProfilePage({ casual = true, recentlyPlayedCount = 5 } = {}) {
+export function userProfilePage({
+  casual = true,
+  recentlyPlayedCount = 5,
+  includePointsAndRank = true,
+  siteRankValue = '#1,111 of 500,000',
+  headerMeta = null,
+} = {}) {
   return (
     '<div id="app" data-page=\'{"props":{}}\'></div>' +
     '<div class="container"><main class="with-sidebar"><article>' +
     '<h1>Welington</h1>' +
-    userStatsBlock({ casual }) +
+    (headerMeta ? profileHeaderMetaBlock(headerMeta) : '') +
+    userStatsBlock({ casual, includePointsAndRank, siteRankValue }) +
     '<hr />' +
     '<div class="mt-1 mb-8 bg-embed p-5 rounded-sm">' +
     '<h2 class="text-h4 leading-none! mb-2">Progression Status</h2>' +

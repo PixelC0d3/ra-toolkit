@@ -7,9 +7,15 @@ import { escapeHtml } from './dom.js';
 // =========================================
 //   Changelog Popup (after version update)
 // =========================================
-export var CURRENT_VERSION = "2.10.0";
+export var CURRENT_VERSION = "2.10.1";
 
 export var CHANGELOG = [
+  { version: "2.10.1", changes: [
+    "Last N Games Played: pagination no longer offers a next page when the account has fewer games than the page size",
+    "User Stats: Site rank no longer shows blank for accounts not ranked yet — shows the site's own status message instead",
+    "User Stats: Points and Site rank now also read from the profile header, fixing blank values when viewing someone else's profile",
+    "Activity (Last 365 Days): new accounts with no history now see the (empty) heatmap instead of an error message"
+  ]},
   { version: "2.10.0", changes: [
     "Rarest Achievements: now computed from your entire achievement history (like the mobile app), not just the last 30 days",
     "Rarest Achievements: paginated (5 per page by default, configurable) with sort filters — Rarest first, Least rare first, Most recent",

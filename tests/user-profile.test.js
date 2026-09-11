@@ -70,6 +70,20 @@ describe('recently played pagination', () => {
 
     expect(document.querySelector('a[href*="?g="]')).toBeNull();
   });
+
+  it('does not offer a next page when the server list has fewer games than the page size', async () => {
+    // A brand-new account with only 2 games ever played — the native list is
+    // 2 items long, not padded to the default page size of 5.
+    await renderProfile({ recentlyPlayedCount: 2 });
+
+    const pagination = document.getElementById('enhanced-pagination');
+    expect(pagination).not.toBeNull();
+
+    const buttonLabels = [...pagination.querySelectorAll('button')].map((b) => b.textContent);
+    expect(buttonLabels).not.toContain('2');
+    expect(pagination.querySelector('button.active').textContent).toBe('1');
+    expect(pagination.querySelector('button.active').disabled).toBe(false);
+  });
 });
 
 describe('enhanced user stats', () => {
@@ -117,6 +131,30 @@ describe('enhanced user stats', () => {
     const root = document.querySelector('.stats-root');
     expect(root.textContent).toContain('Casual');
     expect(root.textContent).toContain('#5,678');
+  });
+
+  it('shows the site\'s own message instead of a blank card when the user is not ranked yet', async () => {
+    await renderProfile({ siteRankValue: 'Requires at least 250 points.' });
+
+    const root = document.querySelector('.stats-root');
+    expect(root.textContent).toContain('Requires at least 250 points.');
+  });
+
+  it('falls back to the profile header for Points/Site rank when Player Stats omits them', async () => {
+    // Player Stats only lists Points/Site rank as their own rows for profiles
+    // with mixed hardcore+casual progress. Hardcore-only accounts (most
+    // users, and anyone viewing someone else's profile) have them omitted
+    // there — the numbers only exist in the profile header in that case.
+    await renderProfile({
+      includePointsAndRank: false,
+      headerMeta: { points: '135,283 (733,201)', rank: '#243 of 163,248 (Top 0.15%)' },
+    });
+
+    const root = document.querySelector('.stats-root');
+    expect(root.textContent).toContain('135,283');
+    expect(root.textContent).toContain('733,201 weighted');
+    expect(root.textContent).toContain('#243');
+    expect(root.textContent).toContain('of 163,248');
   });
 });
 
@@ -221,6 +259,22 @@ describe('player insights dashboard', () => {
     expect(rarest[0].textContent).toContain('x9.0');
 
     expect(document.querySelector('.enhanced-timeline-content').children.length).toBeGreaterThan(0);
+  });
+
+  it('shows the (empty) activity heatmap for new accounts instead of an error message', async () => {
+    // A successful response with no rows — a brand-new account, not a
+    // network failure — should still draw the heatmap grid.
+    const payloads = { ...fullPayloads, 'API_GetAchievementsEarnedBetween.php': [] };
+    await renderDashboard(respondWith(payloads));
+
+    await waitFor(() => document.querySelector('.enhanced-timeline-toggle-bar'), { timeout: 3000 });
+
+    const timelineContent = document.querySelector('.enhanced-timeline-content');
+    expect(timelineContent.textContent).not.toContain('Could not load activity data.');
+    expect(timelineContent.querySelector('.enhanced-timeline-table')).not.toBeNull();
+
+    // Same distinction applies to the streak tracker.
+    expect(document.querySelector('.enhanced-streak-content').textContent).not.toContain('Could not load streak data.');
   });
 
   it('degrades to per-section empty states when the API gives nothing back', async () => {

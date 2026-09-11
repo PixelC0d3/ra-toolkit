@@ -46,13 +46,35 @@ export function enhanceUserStats() {
     }
     return s[key] || '';
   }
+  // Player Stats only lists Points/Site rank as their own rows when the
+  // profile has mixed hardcore+casual progress; hardcore-only accounts (most
+  // users) have them omitted there entirely — they only exist in the
+  // profile header ("Points: 135,283 (733,201)" / "Site Rank: #243 of ...").
+  // This is the fallback for that case.
+  function scrapeHeaderValue(labelSubstrings) {
+    var candidates = document.querySelectorAll('p');
+    for (var i = 0; i < candidates.length; i++) {
+      var boldSpan = candidates[i].querySelector('span.font-bold');
+      if (!boldSpan) continue;
+      var label = (boldSpan.textContent || '').trim();
+      for (var j = 0; j < labelSubstrings.length; j++) {
+        if (label.indexOf(labelSubstrings[j]) !== -1) {
+          return (candidates[i].textContent || '').replace(boldSpan.textContent, '').trim();
+        }
+      }
+    }
+    return '';
+  }
   function extractWeighted(raw) {
     var m = raw.match(/^([\d,.\s]+)\s*\((.+)\)$/);
     return m ? { main: m[1].trim(), weighted: m[2].trim() } : { main: raw, weighted: '' };
   }
   function extractRankTotal(raw) {
     var m = raw.match(/#([\d,]+)\s*of\s*([\d,]+)/i);
-    return m ? { rank: '#' + m[1], total: 'of ' + m[2] } : { rank: raw, total: '' };
+    if (m) return { rank: '#' + m[1], total: 'of ' + m[2] };
+    // Not ranked yet ("Requires at least N points.", "Will appear shortly.",
+    // "Untracked") or nothing found at all — show something, never blank.
+    return { rank: raw || 'Unranked', total: '' };
   }
   function extractBeatenRetail(raw) {
     var m = raw.match(/^(\d+)\s*\((.+)\)$/);
@@ -60,8 +82,8 @@ export function enhanceUserStats() {
   }
 
   // Primary cards
-  var pts = extractWeighted(val('Points'));
-  var rank = extractRankTotal(val('Site rank'));
+  var pts = extractWeighted(val('Points') || scrapeHeaderValue(['Points']));
+  var rank = extractRankTotal(val('Site rank') || scrapeHeaderValue(['Site Rank', 'Casual Rank']));
   var beaten = extractBeatenRetail(val('Total games beaten'));
 
   var primaryHtml = ''

@@ -6,10 +6,7 @@ import { escapeHtml } from '../../../core/dom.js';
 
 export function renderActivityTimeline(achievements, masteredDayMap, beatenDayMap, timelineSection) {
   var content = timelineSection.querySelector('.enhanced-timeline-content');
-  if (!achievements || achievements.length === 0) {
-    content.innerHTML = '<div style="font-size:0.78rem;color:#525252;padding:4px 0;">No recent activity.</div>';
-    return;
-  }
+  achievements = achievements || [];
 
   // Update total in title
   var totalEl = document.getElementById('enhanced-timeline-total');
